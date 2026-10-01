@@ -1,0 +1,64 @@
+discover_contacts:
+  description: >
+    Using the provided seed institutions or topics ({seeds}), discover new high-confidence
+    academic contacts. Use OpenAlex, Crossref and public faculty directories.
+    Return only structured contact records.
+  expected_output: >
+    A JSON array of objects with keys:
+    name, title, institution, email, source_url, discovery_method, confidence, jurisdiction, orcid (if found)
+  agent: scout
+
+enrich_profiles:
+  description: >
+    Take the contacts produced by the previous task and enrich each one with OpenAlex data.
+    Generate 1-3 specific personalization hooks based on real recent works.
+  expected_output: >
+    A JSON array of enriched profiles containing:
+    contact_id, openalex_id, recent_works (title + year + doi), topics, co_authors_summary,
+    personalization_hooks (list of 1-3 strings), fit_score
+  agent: atlas
+  context:
+    - discover_contacts
+
+write_emails:
+  description: >
+    Using the enriched profiles, write one short personalized email per contact.
+    Subject + body only. Must stay under 150 words and include mandatory compliance footer.
+  expected_output: >
+    A JSON array of objects with keys:
+    contact_id, subject, body
+  agent: scribe
+  context:
+    - enrich_profiles
+
+compliance_check:
+  description: >
+    Review every email produced by Scribe against the full compliance checklist
+    (jurisdiction, source, institutional domain, opt-out language, identity disclosure,
+    suppression list, volume limits). Approve, reject or flag for human review.
+  expected_output: >
+    A JSON array of objects with keys:
+    contact_id, decision (approved/rejected/needs_human), reason, audit_notes
+  agent: sentinel
+  context:
+    - write_emails
+
+send_emails:
+  description: >
+    For every email that Sentinel approved, send it through the delivery system and
+    record the event. Update suppression list on any unsubscribe or hard bounce.
+  expected_output: >
+    A JSON summary of send results: sent_count, failed_count, event_ids
+  agent: courier
+  context:
+    - compliance_check
+
+analyze_and_learn:
+  description: >
+    Analyze the full run (discovery → delivery) and produce a short CEO report plus
+    concrete recommendations for improving Scout, Atlas and Scribe.
+  expected_output: >
+    Markdown report with metrics and 3-5 actionable recommendations
+  agent: oracle
+  context:
+    - send_emails
